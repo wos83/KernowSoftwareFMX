@@ -2,9 +2,9 @@
 *                                                                              *
 *  TksTabControl - tab control component with badge support                    *
 *                                                                              *
-*  https://github.com/gmurt/KernowSoftwareFMX                                  *
+*  https://bitbucket.org/gmurt/kscomponents                                    *
 *                                                                              *
-*  Copyright 2015 Graham Murt                                                  *
+*  Copyright 2017 Graham Murt                                                  *
 *                                                                              *
 *  email: graham@kernow-software.co.uk                                         *
 *                                                                              *
@@ -62,19 +62,22 @@ type
     FBackground: TAlphaColor;
     FBadgeColor: TAlphaColor;
     FTheme: TksTabBarTheme;
-    procedure SetColours(ASelected, ANormal, ABackground, ABadge: TAlphaColor);
+    FSelectedBackground: TAlphaColor;
+    procedure SetColours(ASelected, ANormal, ABackground, ASelectedBackground, ABadge: TAlphaColor);
     procedure SetBackground(const Value: TAlphaColor);
     procedure SetNormal(const Value: TAlphaColor);
     procedure SetSelected(const Value: TAlphaColor);
     procedure SetTheme(const Value: TksTabBarTheme);
     procedure Changed;
     procedure SetBadgeColor(const Value: TAlphaColor);
+    procedure SetSelectedBackground(const Value: TAlphaColor);
   public
     constructor Create(ATabControl: TksTabControl);
   published
     property SelectedColor: TAlphaColor read FSelected write SetSelected default claDodgerblue;
-    property NormalColor: TAlphaColor read FNormal write SetNormal default claDimgray;
-    property BackgroundColor: TAlphaColor read FBackground write SetBackground default claWhite;
+    property NormalColor: TAlphaColor read FNormal write SetNormal default claGray;
+    property BackgroundColor: TAlphaColor read FBackground write SetBackground default $FFEEEEEE;
+    property SelectedBackgroundColor: TAlphaColor read FSelectedBackground write SetSelectedBackground default claWhite;
     property BadgeColor: TAlphaColor read FBadgeColor write SetBadgeColor default claDodgerblue;
     property Theme: TksTabBarTheme read FTheme write SetTheme default ksTbLightTabs;
   end;
@@ -87,7 +90,9 @@ type
     FTabIndex: integer;
     FText: string;
     FBadgeValue: integer;
+    FBadge: TBitmap;
     FHighlightStyle: TksTabBarHighlightStyle;
+    //FCachedBmp: TBitmap;
     procedure SetText(const Value: string);
     procedure SetBadgeValue(const Value: integer);
     procedure UpdateTabs;
@@ -97,19 +102,22 @@ type
     procedure SetHighlightStyle(const Value: TksTabBarHighlightStyle);
     procedure FadeOut(ADuration: single);
     procedure FadeIn(ADuration: single);
+    procedure SetBackground(const Value: TAlphaColor);
   public
     constructor Create(AOwner: TComponent); override;
-    procedure BeforeDestruction; override;
     destructor Destroy; override;
+    procedure BeforeDestruction; override;
     procedure DrawTab(ACanvas: TCanvas; AIndex: integer; ARect: TRectF);
+    procedure RedrawBadge;
   published
     property Text: string read FText write SetText;
-    property BadgeValue: integer read FBadgeValue write SetBadgeValue;
+    property BadgeValue: integer read FBadgeValue write SetBadgeValue default 0;
     property Icon: TBitmap read FIcon write SetIcon;
     property StandardIcon: TksTabItemIcon read FIconType write SetIconType;
     property TabIndex: integer read FTabIndex write SetTabIndex;// stored False;
+    property HitTest;
     property HighlightStyle: TksTabBarHighlightStyle read FHighlightStyle write SetHighlightStyle default ksTbHighlightSingleColor;
-    property Background: TAlphaColor read FBackground write FBackground default claNull;
+    property Background: TAlphaColor read FBackground write SetBackground default claWhite;
   end;
 
   TksTabItemList = class(TObjectList<TksTabItem>)
@@ -136,15 +144,20 @@ type
     property Position;
   end;
 
-  [ComponentPlatformsAttribute(pidWin32 or pidWin64 or
-    {$IFDEF XE8_OR_NEWER} pidiOSDevice32 or pidiOSDevice64
-    {$ELSE} pidiOSDevice {$ENDIF} or pidiOSSimulator or pidAndroid)]
+  [ComponentPlatformsAttribute(
+    pidWin32 or
+    pidWin64 or
+    {$IFDEF XE8_OR_NEWER} pidiOSDevice32 or pidiOSDevice64 {$ELSE} pidiOSDevice {$ENDIF} or
+    {$IFDEF XE10_3_OR_NEWER} pidiOSSimulator32 or pidiOSSimulator64 {$ELSE} pidiOSSimulator {$ENDIF} or
+    {$IFDEF XE10_3_OR_NEWER} pidAndroid32Arm or pidAndroid64Arm {$ELSE} pidAndroid {$ENDIF}
+    )]
   TksTabControl = class(TControl, IItemsContainer)
   private
     FTabBar: TksTabBar;
     FTabIndex: integer;
     FTabs: TksTabItemList;
     FAppearence: TksTabBarAppearence;
+    FBeforeChange: TNotifyEvent;
     FOnChange: TNotifyEvent;
     FOnClickTab: TksTabBarClickTabEvent;
     FTabPosition: TksTabBarPosition;
@@ -180,6 +193,7 @@ type
     property Tabs: TksTabItemList read FTabs;
     property SelectedTab: TksTabItem read GetSelectedTab;
     procedure FadeToNextTab(const ADelaySeconds: single = 0.5);
+    procedure FadeToPrevTab(const ADelaySeconds: single = 0.5);
     procedure FadeToTab(ATab: TksTabItem; const ADelaySeconds: single = 0.5);
   published
     property Align;
@@ -194,19 +208,19 @@ type
     property TabPosition: TksTabBarPosition read FTabPosition write SetTabBarPosition default ksTbpBottom;
     property Visible;
     // events
+    property BeforeChange: TNotifyEvent read FBeforeChange write FBeforeChange;
+    property OnResize;
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
     property OnClickTab: TksTabBarClickTabEvent read FOnClickTab write FOnClickTab;
   end;
 
   {$R *.dcr}
 
-
   procedure Register;
-
 
 implementation
 
-uses SysUtils,  Math, FMX.Forms, ksCommon, TypInfo, FMX.Ani, fmx.dialogs;
+uses SysUtils, Math, FMX.Forms, ksCommon, TypInfo, FMX.Ani;
 
 procedure Register;
 begin
@@ -226,38 +240,66 @@ end;
 constructor TksTabItem.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
+  //FCachedBmp := TBitmap.Create;
   FIcon := TBitmap.Create;
   ClipChildren := True;
   Stored := True;
   Locked := True;
-  HitTest := False;
   Text := Name;
   FHighlightStyle := ksTbHighlightSingleColor;
-  FBackground := claNull;
+  FBackground := claWhite;
+  FBadgeValue := 0;
 end;
 
 destructor TksTabItem.Destroy;
 begin
-
+  //FreeAndNil(FCachedBmp);
   FreeAndNil(FIcon);
   inherited;
 end;
 
 
 procedure TksTabItem.DrawTab(ACanvas: TCanvas; AIndex: integer; ARect: TRectF);
+
+procedure DrawEllipse(ACanvas: TCanvas; ARect: TRectF; AColor: TAlphaColor);
+  begin
+    ACanvas.Fill.Color := AColor;
+    ACanvas.FillEllipse(ARect, 1);
+    ACanvas.Stroke.Color := AColor;
+    ACanvas.Stroke.Thickness := 1;
+    ACanvas.DrawEllipse(ARect, 1);
+  end;
+
 var
   AAppearence: TksTabBarAppearence;
   ABmp: TBitmap;
   ADestRect: TRectF;
+  r: TRectF;
+  ABadgeRect: TRectF;
 begin
+  r := ARect;
+
   AAppearence := TksTabControl(Parent).Appearence;
-  InflateRect(ARect, 0, -3);
+
+
   ACanvas.Fill.Color := AAppearence.NormalColor;
 
   if AIndex = TksTabControl(Parent).TabIndex then
+  begin
+    ACanvas.Fill.Color := AAppearence.SelectedBackgroundColor;
+    ACanvas.FillRect(r, 0, 0, AllCorners, 1);
     ACanvas.Fill.Color := AAppearence.SelectedColor;
-  ACanvas.Font.Size := 11;
-  ACanvas.FillText(ARect, FText, False, 1, [], TTextAlign.Center, TTextAlign.Trailing);
+  end;
+
+  InflateRect(r, 0, -3);
+
+  ACanvas.Font.Size := 10;
+  ACanvas.FillText(r, FText, False, 1, [], TTextAlign.Center, TTextAlign.Trailing);
+  InflateRect(r, 0, -3);
+
+  ADestRect := RectF(0, 0, 25, 25);
+  OffsetRect(ADestRect, ARect.Left + ((ARect.Width - ADestRect.Width) / 2), 6);
+
   ABmp := TBitmap.Create;
   try
     ABmp.Assign(FIcon);
@@ -276,19 +318,23 @@ begin
       if (AIndex <> TksTabControl(Parent).TabIndex) then
         ReplaceOpaqueColor(ABmp, AAppearence.NormalColor);
     end;
-    ADestRect := RectF(0, 0, 22, 22);
-    OffsetRect(ADestRect, ARect.Left + ((ARect.Width - ADestRect.Width) / 2), 4);
-    ACanvas.DrawBitmap(ABmp, RectF(0, 0, ABmp.Width, ABmp.Height), ADestRect, 1, True);
 
-    if FBadgeValue > 0 then
+
+    ACanvas.DrawBitmap(ABmp, RectF(0,0,ABmp.Width,ABmp.Height), ADestRect, 1, True);
+
+
+    if (FBadgeValue <> 0) and (FBadge <> nil) then
     begin
-      GenerateBadge(ACanvas,
-                    PointF(ADestRect.Right-7, ADestRect.Top-2),
-                    FBadgeValue,
-                    AAppearence.BadgeColor,
-                    AAppearence.BackgroundColor,
-                    claWhite);
+      ABadgeRect := RectF(ADestRect.Left, ADestRect.Top, ADestRect.Left+ 16, ADestRect.Top+16);
+      OffsetRect(ABadgeRect, ADestRect.Width-7, -2);
+
+      ACanvas.DrawBitmap(FBadge, RectF(0, 0, FBadge.Width, FBadge.Height), ABadgeRect, 1);
+      ACanvas.Fill.Color := claWhite;
+      ACanvas.Font.Size := 10;
+      if FBadgeValue > 0 then
+        ACanvas.FillText(ABadgeRect, IntToStr(FBadgeValue), False, 1, [], TTextAlign.Center);
     end;
+
   finally
     FreeAndNil(ABmp);
   end;
@@ -302,6 +348,23 @@ end;
 procedure TksTabItem.FadeOut(ADuration: single);
 begin
   TAnimator.AnimateFloatWait(Self, 'Opacity', 0, ADuration);
+end;
+
+procedure TksTabItem.RedrawBadge;
+var
+  s: single;
+begin
+  if FBadgeValue = 0 then
+    FreeAndNil(FBadge)
+  else
+  begin
+    s := GetScreenScale(False);
+    FBadge := TBitmap.Create(Round(32*s), Round(32*s));
+    FBadge.Clear(claNull);
+    //FBadge.Canvas.Fill.Color := claRed;
+    FBadge.Canvas.Fill.Kind := TBrushKind.Solid;
+    FBadge.Canvas.FillEllipse(RectF(0, 0, FBadge.Width, FBadge.Height), 1);
+  end;
 end;
 
 procedure TksTabItem.SetIconType(const Value: TksTabItemIcon);
@@ -326,11 +389,21 @@ end;
 
 
 
+procedure TksTabItem.SetBackground(const Value: TAlphaColor);
+begin
+  if FBackground <> Value then
+  begin
+    FBackground := Value;
+    TksTabControl(Parent).Repaint;
+  end;
+end;
+
 procedure TksTabItem.SetBadgeValue(const Value: integer);
 begin
   if FBadgeValue <> Value then
   begin
     FBadgeValue := Value;
+    RedrawBadge;
     UpdateTabs;
   end;
 end;
@@ -570,9 +643,23 @@ var
   ARect: TRectF;
 begin
   inherited;
+
+  if Locked then
+    Exit;
+
   Canvas.Fill.Color := FAppearence.BackgroundColor;
   if (SelectedTab <> nil) then
   begin
+    Canvas.Fill.Color := FAppearence.BackgroundColor;
+    if (SelectedTab <> nil) then
+    begin
+      if SelectedTab.Background <> claNull then
+        Canvas.Fill.Color := SelectedTab.Background;
+    end;
+    Canvas.Fill.Kind := TBrushKind.Solid;
+    ARect := ClipRect;
+    if TabPosition <> TksTabBarPosition.ksTbpNone then
+      ARect.Bottom := ARect.Bottom - FTabBar.Height;
     if SelectedTab.Background <> claNull then
       Canvas.Fill.Color := SelectedTab.Background;
   end;
@@ -581,6 +668,11 @@ begin
   if TabPosition <> TksTabBarPosition.ksTbpNone then
     ARect.Bottom := ARect.Bottom - FTabBar.Height;
 
+    Canvas.FillRect(ARect, 0, 0, AllCorners, 1);
+    if (csDesigning in ComponentState) then
+    begin
+      DrawDesignBorder(claDimgray, claDimgray);
+      Canvas.Fill.Color := claDimgray;;
   Canvas.FillRect(ARect, 0, 0, AllCorners, 1);
   if (csDesigning in ComponentState) then
   begin
@@ -588,6 +680,16 @@ begin
     Canvas.Fill.Color := claDimgray;;
 
 
+
+      {$IFDEF MSWINDOWS}
+      if GetTabCount = 0 then
+      begin
+        Canvas.Font.Size := 14;
+        Canvas.FillText(ClipRect, 'Right-click to add tabs', True, 1, [], TTextAlign.Center);
+      end;
+      {$ENDIF}
+
+    end;
 
     {$IFDEF MSWINDOWS}
     if GetTabCount = 0 then
@@ -626,6 +728,12 @@ begin
     FadeToTab(Tabs[TabIndex+1], ADelaySeconds);
 end;
 
+procedure TksTabControl.FadeToPrevTab(const ADelaySeconds: single = 0.5);
+begin
+  if TabIndex > 0 then
+    FadeToTab(Tabs[TabIndex-1], ADelaySeconds);
+end;
+
 procedure TksTabControl.FadeToTab(ATab: TksTabItem; const ADelaySeconds: single = 0.5);
 var
   APrevTab: TksTabItem;
@@ -653,6 +761,10 @@ begin
     Exit;
   if FTabIndex <> Value then
   begin
+    if Assigned(FBeforeChange) then
+      FBeforeChange(Self);
+
+
     FTabIndex := Value;
     UpdateTabs;
     if Assigned(FOnChange) then
@@ -673,6 +785,8 @@ begin
       ksTbpTop: FTabBar.Align := TAlignLayout.Top;
     end;
     ATab := Tabs[ICount];
+    //ATab.FCachedBmp.SetSize(0, 0);
+    ATab.RedrawBadge;
     ATab.FTabIndex := ICount;
     ATab.Width := Self.Width;
     case FTabPosition of
@@ -690,6 +804,9 @@ begin
     ATab.Realign;
   end;
   InvalidateRect(ClipRect);
+  {$IFDEF ANDROID}
+  Application.ProcessMessages;
+  {$ENDIF}
 end;
 
 { TksTabBar }
@@ -716,6 +833,8 @@ begin
   begin
     if ATab <> nil then
     begin
+      if ATab.HitTest = False then
+        Exit;
       TCommonCustomForm(FTabControl.Owner).Focused := nil;
       TCommonCustomForm(FTabControl.Owner).Designer.SelectComponent(ATab);
       TCommonCustomForm(FTabControl.Owner).Designer.Modified;
@@ -723,8 +842,11 @@ begin
     Repaint;
   end;
  {$ENDIF}
-  if ATab <> nil then
-    FTabControl.DoClickTab(ATab);
+  if (ATab <> nil) then
+  begin
+    if ATab.HitTest then
+      FTabControl.DoClickTab(ATab);
+  end;
 end;
 
 procedure TksTabBar.Paint;
@@ -735,6 +857,11 @@ var
   ATabControl: TksTabControl;
 begin
   inherited;
+  //if Locked then
+  //  Exit;
+  if Locked then
+    Exit;
+
   ATabControl := TksTabControl(FTabControl);
   with Canvas do
   begin
@@ -748,25 +875,34 @@ begin
       if FTabControl.TabPosition = ksTbpNone then
       Exit;
 
-      Clear(claNull);
 
       Fill.Kind := TBrushKind.Solid;
 
-      Canvas.Clear(ATabControl.Appearence.BackgroundColor);
+      if ATabControl.Appearence.BackgroundColor <> claNull then
+        Canvas.Clear(ATabControl.Appearence.BackgroundColor);
+
       Stroke.Kind := TBrushKind.Solid;
-      Stroke.Color := claBlack;
+      Stroke.Color := claDimgray;
 
       if (csDesigning in ComponentState) then
         DrawDesignBorder(claDimgray, claDimgray);
 
+
+
+      for ICount := 0 to TksTabControl(FTabControl).GetTabCount-1 do
+      begin
+        //if ATabControl.Tabs[ICount].Visible then
+        ATabControl.Tabs[ICount].DrawTab(Canvas, ICount, ATabControl.GetTabRect(ICount));
+      end;
+
+      //Stroke.Color := claRed;
       case ATabControl.TabPosition of
         ksTbpBottom: DrawRectSides(ARect, 0, 0, AllCorners,1, [TSide.Top]);
         ksTbpTop: DrawRectSides(ARect, 0, 0, AllCorners,1, [TSide.Bottom]);
       end;
 
-      for ICount := 0 to TksTabControl(FTabControl).GetTabCount-1 do
-        ATabControl.Tabs[ICount].DrawTab(Canvas, ICount, ATabControl.GetTabRect(ICount));
     finally
+
       RestoreState(AState);
       Font.Size := 10;
 
@@ -778,7 +914,8 @@ end;
 
 procedure TksTabBarAppearence.Changed;
 begin
-  TksTabControl(FTabControl).Repaint;
+  TksTabControl(FTabControl).UpdateTabs;
+  //TksTabControl(FTabControl).Repaint;
 end;
 
 constructor TksTabBarAppearence.Create(ATabControl: TksTabControl);
@@ -786,8 +923,9 @@ begin
   inherited Create;
   FTabControl := ATabControl;
   FSelected := claDodgerblue;
-  FNormal := claDimgray;
-  FBackground := claWhite;
+  FNormal := claGray;
+  FBackground := $FFEEEEEE;
+  FSelectedBackground := claWhite;
   FBadgeColor := claDodgerblue;
   FTheme := ksTbLightTabs;
 
@@ -813,11 +951,12 @@ begin
   end;
 end;
 
-procedure TksTabBarAppearence.SetColours(ASelected, ANormal, ABackground, ABadge: TAlphaColor);
+procedure TksTabBarAppearence.SetColours(ASelected, ANormal, ABackground, ASelectedBackground, ABadge: TAlphaColor);
 begin
   FSelected := ASelected;
   FNormal := ANormal;
   FBackground := ABackground;
+  FSelectedBackground := ASelectedBackground;
   FBadgeColor := ABadge;
 end;
 
@@ -841,12 +980,21 @@ begin
   end;
 end;
 
+procedure TksTabBarAppearence.SetSelectedBackground(const Value: TAlphaColor);
+begin
+  if FSelectedBackground <> Value then
+  begin
+    FSelectedBackground := Value;
+    Changed;
+  end;
+end;
+
 procedure TksTabBarAppearence.SetTheme(const Value: TksTabBarTheme);
 begin
   if FTheme <> Value then
   begin
-    if Value = ksTbLightTabs then SetColours(claDodgerblue, claGray, claWhite, claDodgerblue);
-    if Value = ksTbDarkTabs then SetColours(claWhite, claGray, $FF202020, claRed);
+    if Value = ksTbLightTabs then SetColours(claDodgerblue, claGray, $FFEEEEEE, claWhite, claDodgerblue);
+    if Value = ksTbDarkTabs then SetColours(claWhite, claGray, $FF202020, $FF3C3C3C, claRed);
     FTheme := Value;
     Changed;
   end;
@@ -869,6 +1017,7 @@ begin
   if (Action = TCollectionNotification.cnRemoved) and (not (csDesigning in FTabControl.ComponentState)) then
   begin
     Value.DisposeOf;
+    FTabControl.UpdateTabs;
   end;
 end;
 
@@ -877,5 +1026,6 @@ initialization
 RegisterFmxClasses([TksTabControl, TksTabItem]);
 
 end.
+
 
 

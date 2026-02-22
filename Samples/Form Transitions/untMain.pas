@@ -5,20 +5,18 @@ interface
 uses
   System.SysUtils, System.Types, System.UITypes, System.Classes, System.Variants,
   FMX.Types, FMX.Controls, FMX.Forms, FMX.Graphics, FMX.Dialogs,
-  ksFormTransition, ksSlideMenu, FMX.StdCtrls, FMX.Objects,
-  FMX.Controls.Presentation, FMX.Edit, ksTypes, ksTableView;
+  ksFormTransition, FMX.StdCtrls, FMX.Objects,
+  FMX.Controls.Presentation, FMX.Edit, ksTypes, ksVirtualListView, ksToolBar;
 
 type
   TForm3 = class(TForm)
-    ToolBar1: TToolBar;
-    ksTableView1: TksTableView;
     ToolBar2: TToolBar;
-    Label1: TLabel;
     Image1: TImage;
-    ksSlideMenu1: TksSlideMenu;
+    ksVirtualListView1: TksVirtualListView;
+    ksFormTransition1: TksFormTransition;
+    ksToolbar1: TksToolbar;
     procedure FormCreate(Sender: TObject);
-    procedure ksTableView1ItemClick(Sender: TObject; x, y: Single;
-      AItem: TksTableViewItem; AId: string; ARowObj: TksTableViewItemObject);
+    procedure ksVirtualListView1ItemClick(Sender: TObject; AItem: TksVListItem);
   private
     { Private declarations }
   public
@@ -38,7 +36,6 @@ procedure TForm3.FormCreate(Sender: TObject);
 var
   AIcon: TBitmap;
 begin
-  TransitionFading := False;
   {$IFDEF MSWINDOWS}
   Width := FormFactor.Width;
   Height := FormFactor.Height;
@@ -47,31 +44,22 @@ begin
   {$ENDIF}
   AIcon := Image1.Bitmap;
   Image1.Visible := False;
-  ksTableView1.Items.AddItem('Slide in right', '', 'background scroll', atMore).Image.Bitmap := AIcon;
-  ksTableView1.Items.AddItem('Slide in right', '', 'fixed background', atMore).Image.Bitmap := AIcon;
-  ksTableView1.Items.AddItem('Slide in bottom', '', 'background scroll', atMore).Image.Bitmap := AIcon;
-  ksTableView1.Items.AddItem('Slide in bottom', '', 'fixed background', atMore).Image.Bitmap := AIcon;
-  ksTableView1.Items.AddItem('Slide in top', '', 'background scroll', atMore).Image.Bitmap := AIcon;
-  ksTableView1.Items.AddItem('Slide in top', '', 'fixed background', atMore).Image.Bitmap := AIcon;
-  ksTableView1.Items.AddItem('Slide in left', '', 'background scroll', atMore).Image.Bitmap := AIcon;
-  ksTableView1.Items.AddItem('Slide in left', '', 'fixed background', atMore).Image.Bitmap := AIcon;
+  ksVirtualListView1.Items.Add('Slide in right', 'Form Transition', 'Click to view', atMore).Image.Bitmap := AIcon;
+  ksVirtualListView1.Items.Add('Slide in bottom', 'Form Transition', 'Click to view', atMore).Image.Bitmap := AIcon;
+  ksVirtualListView1.Items.Add('Slide in top', 'Form Transition', 'Click to view', atMore).Image.Bitmap := AIcon;
+  ksVirtualListView1.Items.Add('Slide in left', 'Form Transition', 'Click to view', atMore).Image.Bitmap := AIcon;
   //SetPassCodeRequireType(TksPassCodeRequireType.ksRequireOnActivate);
 end;
 
-procedure TForm3.ksTableView1ItemClick(Sender: TObject; x, y: Single;
-  AItem: TksTableViewItem; AId: string; ARowObj: TksTableViewItemObject);
+procedure TForm3.ksVirtualListView1ItemClick(Sender: TObject;
+  AItem: TksVListItem);
 begin
   case AItem.Index of
-    0: PushForm(Self, Form5, ksFtSlideInFromRight, True);
-    1: PushForm(Self, Form5, ksFtSlideInFromRight, False);
-    2: PushForm(Self, Form5, ksFtSlideInFromBottom, True);
-    3: PushForm(Self, Form5, ksFtSlideInFromBottom, False);
-    4: PushForm(Self, Form5, ksFtSlideInFromTop, True);
-    5: PushForm(Self, Form5, ksFtSlideInFromTop, False);
-    6: PushForm(Self, Form5, ksFtSlideInFromLeft, True);
-    7: PushForm(Self, Form5, ksFtSlideInFromLeft, False);
+    0: Push(Form5, ksFtSlideInFromRight);
+    1: Push(Form5, ksFtSlideInFromBottom);
+    2: Push(Form5, ksFtSlideInFromTop);
+    3: Push(Form5, ksFtSlideInFromLeft);
   end;
-
 end;
 
 end.

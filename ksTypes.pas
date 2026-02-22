@@ -2,9 +2,9 @@
 *                                                                              *
 *  ksTypes - ksComponents Base classes and types                               *
 *                                                                              *
-*  https://github.com/gmurt/KernowSoftwareFMX                                  *
+*  https://bitbucket.org/gmurt/kscomponents                                    *
 *                                                                              *
-*  Copyright 2015 Graham Murt                                                  *
+*  Copyright 2017 Graham Murt                                                  *
 *                                                                              *
 *  email: graham@kernow-software.co.uk                                         *
 *                                                                              *
@@ -64,10 +64,19 @@ type
     atPagecurl, atDetails, atRadioButton, atRadioButtonChecked, atCheckBox,
     atCheckBoxChecked, atUserDefined1, atUserDefined2, atUserDefined3);
 
+  TksStandardIcon = (Custom, AlarmClock, BarChart, Barcode, Bell, BookCover, BookCoverMinus, BookCoverPlus, BookMark, BookOpen,
+                    Calendar, Camera, Car, Clock, CloudDownload, CloudUpload, Cross, Document, Download, Earth, Email,
+                    Fax, FileList, FileMinus, FilePlus, Files, FileStar, FileTick, Flag, Folder, FolderMinus,
+                    FolderPlus, FolderStar, Home, Inbox, Incoming, ListBullets, ListCheckBoxes, ListImages, ListNumbered, ListTicked,
+                    Location, More, Note, Outgoing,
+                    PaperClip, Photo, PieChart, Pin, Presentation, Search, Settings, Share, ShoppingCart, Spanner, Speaker,
+                    Star, Tablet, Tag, Telephone, Telephone2, TelephoneBook, Tick, Timer, Trash, Upload,
+                    User, UserEdit, UserGroup, Users, UserSearch,
+                    VideoCamera, VideoPlayer, Viewer,
+                    Wifi, Window, Write);
+
 
   //---------------------------------------------------------------------------------------
-
-  // TksTableViewAccessoryImage
 
   TksTableViewAccessoryImage = class(TBitmap)
   private
@@ -81,8 +90,6 @@ type
 
   //---------------------------------------------------------------------------------------
 
-  // TksTableViewAccessoryImageList
-
   TksTableViewAccessoryImageList = class(TObjectList<TksTableViewAccessoryImage>)
   private
     FImageScale: single;
@@ -90,8 +97,7 @@ type
     FActiveStyle: TFmxObject;
     procedure AddEllipsesAccessory;
     procedure AddFlagAccessory;
-    procedure CalculateImageScale;
-    function GetAccessoryFromResource(AStyleName: string; const AState: string = ''): TksTableViewAccessoryImage;
+    function GetAccessoryFromResource(AStyleName: array of string; const AState: string = ''): TksTableViewAccessoryImage;
     procedure Initialize;
   public
     constructor Create;
@@ -110,16 +116,93 @@ type
 
 var
   AUnitTesting: Boolean;
+  AAccessories: TksTableViewAccessoryImageList;
 
+  function SwitchWidth: single;
+  function SwitchHeight: single;
 
-  procedure PlaySystemSound(ASound: TksSound); overload;
-  procedure PlaySystemSound(ASoundID: integer); overload;
+  procedure SwitchImage(ACanvas: TCanvas; ARect: TRectF; AChecked: Boolean);
 
 implementation
 
-uses ksCommon, SysUtils, FMX.Styles, FMX.Styles.Objects, Math, ksSystemSound;
+uses FMX.Forms, ksCommon, SysUtils,FMX.Styles, FMX.Styles.Objects, Math, ksSystemSound;
+
+var
+  ASwitchSize: TSizeF;
+  ASwitchBmp: array[False..True] of TBitmap;
 
 // ------------------------------------------------------------------------------
+
+
+procedure InitializeSwitch(const AForce: Boolean = false); var ASwitch: TSwitch; i: Boolean;
+begin
+  if not assigned(application.MainForm) then exit;
+  if (not AForce) and (not ASwitchSize.IsZero) then exit;
+
+  ASwitch := TSwitch.Create(nil);
+  try
+    ASwitch.Parent := application.MainForm;
+    ASwitch.Visible := False;
+    ASwitch.ApplyStyleLookup;
+    for i := Low(ASwitchBmp) to High(ASwitchBmp) do
+    begin
+      ASwitch.IsChecked := i;
+
+      ASwitchSize.Width := ASwitch.Width;
+      ASwitchSize.Height := ASwitch.Height;
+
+      ASwitchBmp[i].SetSize(Round(ASwitch.Width), Round(ASwitch.Height));
+      ASwitchBmp[i].Clear(0);
+      if ASwitchBmp[i].Canvas.BeginScene(nil) then
+      begin
+        ASwitch.PaintTo(ASwitchBmp[i].Canvas, RectF(0, 0, ASwitch.Width,
+          ASwitch.Height), nil);
+        ASwitchBmp[i].Canvas.EndScene;
+      end;
+    end;
+  finally
+    ASwitch.DisposeOf;
+  end;
+end;
+
+(*
+procedure InitialiseSwitchSize;
+var
+  ASwitch: TSwitch;
+begin
+  ASwitch := TSwitch.Create(nil);
+  try
+    ASwitchSize.Width := ASwitch.Width;
+    ASwitchSize.Height := ASwitch.Height;
+  finally
+    ASwitch.DisposeOf;
+  end;
+end;  *)
+
+function SwitchWidth: single;
+begin
+  InitializeSwitch;
+  Result := ASwitchSize.Width;
+end;
+
+function SwitchHeight: single;
+begin
+  InitializeSwitch;
+  Result := ASwitchSize.Height;
+end;
+
+procedure SwitchImage(ACanvas: TCanvas; ARect: TRectF; AChecked: Boolean);
+var
+  ASaveState: TCanvasSaveState;
+begin
+  InitializeSwitch;
+  ASaveState := ACanvas.SaveState;
+  try
+    ACanvas.DrawBitmap(ASwitchBmp[AChecked], RectF(0, 0, ASwitchBmp[AChecked].Width, ASwitchBmp[AChecked].Height), ARect, 1);
+  finally
+    ACanvas.RestoreState(ASaveState);
+  end;
+end;
 
 procedure PlaySystemSound(ASound: TksSound);
 var
@@ -129,21 +212,18 @@ begin
   AObj.Play(ASound);
 end;
 
-procedure PlaySystemSound(ASoundID: integer); overload;
-var
-  AObj: TksSystemSound;
-begin
-  AObj := TksSystemSound.Create;
-  AObj.Play(ASoundID);
-end;
 
 { TksTableViewAccessoryImageList }
 
 function TksTableViewAccessoryImageList.GetAccessoryImage(AAccessory: TksAccessoryType): TksTableViewAccessoryImage;
 begin
+  Result := nil;
   if Count = 0 then
+  begin
     Initialize;
-  Result := Items[Ord(AAccessory)];
+  end;
+  if Ord(AAccessory) < Count then
+    Result := Items[Ord(AAccessory)];
 end;
 
 procedure TksTableViewAccessoryImageList.AddEllipsesAccessory;
@@ -211,17 +291,6 @@ begin
   Add(AAcc);
 end;
 
-procedure TksTableViewAccessoryImageList.CalculateImageScale;
-begin
-  if FImageScale = 0 then
-  begin
-    FImageScale := Min(Trunc(GetScreenScale), 3);
-    {$IFDEF MSWINDOWS}
-    FImageScale := 1;
-    {$ENDIF}
-  end;
-end;
-
 constructor TksTableViewAccessoryImageList.Create;
 begin
   inherited Create(True);
@@ -238,113 +307,106 @@ begin
 end;
 
 procedure TksTableViewAccessoryImageList.DrawAccessory(ACanvas: TCanvas; ARect: TRectF; AAccessory: TksAccessoryType; AStroke, AFill: TAlphaColor);
+var
+  AAcc: TksTableViewAccessoryImage;
 begin
-  //AState := ACanvas.SaveState;
-  try
-    //ACanvas.IntersectClipRect(ARect);
-    if AFill <> claNull then
-    begin
-      ACanvas.Fill.Color := AFill;
-      ACanvas.Fill.Kind := TBrushKind.Solid;
-      ACanvas.FillRect(ARect, 0, 0, AllCorners, 1);
-    end;
-    GetAccessoryImage(AAccessory).DrawToCanvas(ACanvas, ARect, False);
-    //ACanvas.Stroke.Color := AStroke;
-    //ACanvas.DrawRect(ARect, 0, 0, AllCorners, 1);
-  finally
-  //  ACanvas.RestoreState(AState);
+  if AFill <> claNull then
+  begin
+    ACanvas.Fill.Color := AFill;
+    ACanvas.Fill.Kind := TBrushKind.Solid;
+    ACanvas.FillRect(ARect, 0, 0, AllCorners, 1);
   end;
+  AAcc := GetAccessoryImage(AAccessory);
+  if AAcc <> nil then
+    AAcc.DrawToCanvas(ACanvas, ARect, False);
 end;
 
 function TksTableViewAccessoryImageList.GetAccessoryFromResource
-  (AStyleName: string; const AState: string = ''): TksTableViewAccessoryImage;
+  (AStyleName: array of string; const AState: string = ''): TksTableViewAccessoryImage;
 var
   AStyleObj: TStyleObject;
   AImgRect: TBounds;
-  AIds: TStrings;
   r: TRectF;
   ABitmapLink: TBitmapLinks;
   AImageMap: TBitmap;
+  I: integer;
+  AScale: single;
+  ICount: integer;
 begin
-  CalculateImageScale;
-
   Result := TksTableViewAccessoryImage.Create;
-  AIds := TStringList.Create;
-  try
-    AIds.Text := StringReplace(AStyleName, '.', #13, [rfReplaceAll]);
 
-    if AUnitTesting then
-    begin
-      if FActiveStyle = nil then
-        FActiveStyle := TStyleManager.ActiveStyle(Nil);
-      AStyleObj := TStyleObject(FActiveStyle)
-    end
-    else
-      AStyleObj := TStyleObject(TStyleManager.ActiveStyle(nil));
+  if AUnitTesting then
+  begin
+    if FActiveStyle = nil then
+      FActiveStyle := TStyleManager.ActiveStyle(Nil);
+    AStyleObj := TStyleObject(FActiveStyle)
+  end
+  else
+    AStyleObj := TStyleObject(TStyleManager.ActiveStyle(nil));
 
-    while AIds.Count > 0 do
-    begin
-      AStyleObj := TStyleObject(AStyleObj.FindStyleResource(AIds[0]));
-      AIds.Delete(0);
-    end;
 
-    if AStyleObj <> nil then
+  for ICount := Low(AStyleName) to High(AStyleName) do
+    AStyleObj := TStyleObject(AStyleObj.FindStyleResource(AStyleName[ICount]));
+
+  if AStyleObj <> nil then
+  begin
+    if FImageMap.IsEmpty then
     begin
-      if FImageMap.IsEmpty then
+      FImageScale := GetScreenScale(False);
+
+      for i := 0 to (AStyleObj as TStyleObject).Source.MultiResBitmap.Count-1 do
       begin
-        AImageMap := ((AStyleObj as TStyleObject).Source.MultiResBitmap.Bitmaps[FImageScale]);
-
-        FImageMap.SetSize(Round(AImageMap.Width), Round(AImageMap.Height));
-        FImageMap.Clear(claNull);
-
-        FImageMap.Canvas.BeginScene;
-        try
-          FImageMap.Canvas.DrawBitmap(AImageMap,
-                                      RectF(0, 0, AImageMap.Width, AImageMap.Height),
-                                      RectF(0, 0, FImageMap.Width, FImageMap.Height),
-                                      1,
-                                      True);
-        finally
-          FImageMap.Canvas.EndScene;
+        AScale := (AStyleObj as TStyleObject).Source.MultiResBitmap[i].Scale;
+        if Round(AScale) <= FImageScale then
+        begin
+          FImageScale := Round(AScale);
+          Break;
         end;
       end;
+      AImageMap := ((AStyleObj as TStyleObject).Source.MultiResBitmap.Bitmaps[FImageScale]);
+      FImageMap.SetSize(Round(AImageMap.Width), Round(AImageMap.Height));
+      FImageMap.Clear(claNull);
 
-      ABitmapLink := nil;
-      if AStyleObj = nil then
-        Exit;
-      if (AStyleObj.ClassType = TCheckStyleObject) then
-      begin
-        if AState = 'checked' then
-          ABitmapLink := TCheckStyleObject(AStyleObj).ActiveLink
-        else
-          ABitmapLink := TCheckStyleObject(AStyleObj).SourceLink
-
+      FImageMap.Canvas.BeginScene;
+      try
+        FImageMap.Canvas.DrawBitmap(AImageMap,
+                                    RectF(0, 0, AImageMap.Width, AImageMap.Height),
+                                    RectF(0, 0, FImageMap.Width, FImageMap.Height),
+                                    1,
+                                    True);
+      finally
+        FImageMap.Canvas.EndScene;
       end;
+    end;
 
-      if ABitmapLink = nil then
-        ABitmapLink := AStyleObj.SourceLink;
+    ABitmapLink := nil;
+    if AStyleObj = nil then
+      Exit;
+    if (AStyleObj.ClassType = TCheckStyleObject) then
+    begin
+      if AState = 'checked' then
+        ABitmapLink := TCheckStyleObject(AStyleObj).ActiveLink
+      else
+        ABitmapLink := TCheckStyleObject(AStyleObj).SourceLink
+    end;
+
+    if ABitmapLink = nil then
+      ABitmapLink := AStyleObj.SourceLink;
 
 {$IFDEF XE8_OR_NEWER}
-      AImgRect := ABitmapLink.LinkByScale(FImageScale, True).SourceRect;
+    AImgRect := ABitmapLink.LinkByScale(FImageScale, True).SourceRect;
 {$ELSE}
-      AImgRect := ABitmapLink.LinkByScale(FImageScale).SourceRect;
+    AImgRect := ABitmapLink.LinkByScale(FImageScale, False).SourceRect;
 {$ENDIF}
-      Result.SetSize(Round(AImgRect.Width), Round(AImgRect.Height));
-      Result.Clear(claNull);
-      Result.Canvas.BeginScene;
+    Result.SetSize(Round(AImgRect.Width), Round(AImgRect.Height));
+    Result.Clear(claNull);
+    Result.Canvas.BeginScene;
 
-      r := AImgRect.Rect;
+    r := AImgRect.Rect;
 
-      Result.Canvas.DrawBitmap(FImageMap, r, RectF(0, 0, Result.Width,
-        Result.Height), 1, True);
-      Result.Canvas.EndScene;
-    end;
-  finally
-{$IFDEF NEXTGEN}
-    FreeAndNil(AIds);
-{$ELSE}
-    AIds.Free;
-{$ENDIF}
+    Result.Canvas.DrawBitmap(FImageMap, r, RectF(0, 0, Result.Width,
+      Result.Height), 1, True);
+    Result.Canvas.EndScene;
   end;
 end;
 
@@ -355,44 +417,44 @@ begin
   for ICount := Low(TksAccessoryType) to High(TksAccessoryType) do
   begin
     case ICount of
-      atNone: Add(GetAccessoryFromResource('none'));
-      atMore: Add(GetAccessoryFromResource('listviewstyle.accessorymore'));
-      atCheckmark: Add(GetAccessoryFromResource('listviewstyle.accessorycheckmark'));
-      atDetail: Add(GetAccessoryFromResource('listviewstyle.accessorydetail'));
+      atNone: Add(GetAccessoryFromResource(['none']));
+      atMore: Add(GetAccessoryFromResource(['listviewstyle','accessorymore']));
+      atCheckmark: Add(GetAccessoryFromResource(['listviewstyle','accessorycheckmark']));
+      atDetail: Add(GetAccessoryFromResource(['listviewstyle','accessorydetail']));
       atEllipses: AddEllipsesAccessory;
       atFlag: AddFlagAccessory;
-      atBack: Add(GetAccessoryFromResource('backtoolbutton.icon'));
-      atRefresh: Add(GetAccessoryFromResource('refreshtoolbutton.icon'));
-      atAction: Add(GetAccessoryFromResource('actiontoolbutton.icon'));
-      atPlay: Add(GetAccessoryFromResource('playtoolbutton.icon'));
-      atRewind: Add(GetAccessoryFromResource('rewindtoolbutton.icon'));
-      atForward: Add(GetAccessoryFromResource('forwardtoolbutton.icon'));
-      atPause: Add(GetAccessoryFromResource('pausetoolbutton.icon'));
-      atStop: Add(GetAccessoryFromResource('stoptoolbutton.icon'));
-      atAdd: Add(GetAccessoryFromResource('addtoolbutton.icon'));
-      atPrior: Add(GetAccessoryFromResource('priortoolbutton.icon'));
-      atNext: Add(GetAccessoryFromResource('nexttoolbutton.icon'));
-      atArrowUp: Add(GetAccessoryFromResource('arrowuptoolbutton.icon'));
-      atArrowDown: Add(GetAccessoryFromResource('arrowdowntoolbutton.icon'));
-      atArrowLeft: Add(GetAccessoryFromResource('arrowlefttoolbutton.icon'));
-      atArrowRight: Add(GetAccessoryFromResource('arrowrighttoolbutton.icon'));
-      atReply: Add(GetAccessoryFromResource('replytoolbutton.icon'));
-      atSearch: Add(GetAccessoryFromResource('searchtoolbutton.icon'));
-      atBookmarks: Add(GetAccessoryFromResource('bookmarkstoolbutton.icon'));
-      atTrash: Add(GetAccessoryFromResource('trashtoolbutton.icon'));
-      atOrganize: Add(GetAccessoryFromResource('organizetoolbutton.icon'));
-      atCamera: Add(GetAccessoryFromResource('cameratoolbutton.icon'));
-      atCompose: Add(GetAccessoryFromResource('composetoolbutton.icon'));
-      atInfo: Add(GetAccessoryFromResource('infotoolbutton.icon'));
-      atPagecurl: Add(GetAccessoryFromResource('pagecurltoolbutton.icon'));
-      atDetails: Add(GetAccessoryFromResource('detailstoolbutton.icon'));
-      atRadioButton: Add(GetAccessoryFromResource('radiobuttonstyle.background'));
-      atRadioButtonChecked: Add(GetAccessoryFromResource('radiobuttonstyle.background', 'checked'));
-      atCheckBox: Add(GetAccessoryFromResource('checkboxstyle.background'));
-      atCheckBoxChecked: Add(GetAccessoryFromResource('checkboxstyle.background', 'checked'));
-      atUserDefined1: Add(GetAccessoryFromResource('userdefined1'));
-      atUserDefined2: Add(GetAccessoryFromResource('userdefined2'));
-      atUserDefined3: Add(GetAccessoryFromResource('userdefined3'));
+      atBack: Add(GetAccessoryFromResource(['backtoolbutton','icon']));
+      atRefresh: Add(GetAccessoryFromResource(['refreshtoolbutton','icon']));
+      atAction: Add(GetAccessoryFromResource(['actiontoolbutton','icon']));
+      atPlay: Add(GetAccessoryFromResource(['playtoolbutton','icon']));
+      atRewind: Add(GetAccessoryFromResource(['rewindtoolbutton','icon']));
+      atForward: Add(GetAccessoryFromResource(['forwardtoolbutton','icon']));
+      atPause: Add(GetAccessoryFromResource(['pausetoolbutton','icon']));
+      atStop: Add(GetAccessoryFromResource(['stoptoolbutton','icon']));
+      atAdd: Add(GetAccessoryFromResource(['addtoolbutton','icon']));
+      atPrior: Add(GetAccessoryFromResource(['priortoolbutton','icon']));
+      atNext: Add(GetAccessoryFromResource(['nexttoolbutton','icon']));
+      atArrowUp: Add(GetAccessoryFromResource(['arrowuptoolbutton','icon']));
+      atArrowDown: Add(GetAccessoryFromResource(['arrowdowntoolbutton','icon']));
+      atArrowLeft: Add(GetAccessoryFromResource(['arrowlefttoolbutton','icon']));
+      atArrowRight: Add(GetAccessoryFromResource(['arrowrighttoolbutton','icon']));
+      atReply: Add(GetAccessoryFromResource(['replytoolbutton','icon']));
+      atSearch: Add(GetAccessoryFromResource(['searchtoolbutton','icon']));
+      atBookmarks: Add(GetAccessoryFromResource(['bookmarkstoolbutton','icon']));
+      atTrash: Add(GetAccessoryFromResource(['trashtoolbutton','icon']));
+      atOrganize: Add(GetAccessoryFromResource(['organizetoolbutton','icon']));
+      atCamera: Add(GetAccessoryFromResource(['cameratoolbutton','icon']));
+      atCompose: Add(GetAccessoryFromResource(['composetoolbutton','icon']));
+      atInfo: Add(GetAccessoryFromResource(['infotoolbutton','icon']));
+      atPagecurl: Add(GetAccessoryFromResource(['pagecurltoolbutton','icon']));
+      atDetails: Add(GetAccessoryFromResource(['detailstoolbutton','icon']));
+      atRadioButton: Add(GetAccessoryFromResource(['radiobuttonstyle','background']));
+      atRadioButtonChecked: Add(GetAccessoryFromResource(['radiobuttonstyle','background'], 'checked'));
+      atCheckBox: Add(GetAccessoryFromResource(['checkboxstyle','background']));
+      atCheckBoxChecked: Add(GetAccessoryFromResource(['checkboxstyle','background'], 'checked'));
+      atUserDefined1: Add(GetAccessoryFromResource(['userdefined1']));
+      atUserDefined2: Add(GetAccessoryFromResource(['userdefined2']));
+      atUserDefined3: Add(GetAccessoryFromResource(['userdefined3']));
     end;
   end;
   // generate our own ellipses accessory...
@@ -446,8 +508,18 @@ end;
 
 initialization
   AUnitTesting := False;
+  AAccessories := TksTableViewAccessoryImageList.Create;
 
-finalization
+  ASwitchBmp[True] := TBitmap.Create;
+  ASwitchBmp[False] := TBitmap.Create;
 
+
+  finalization
+
+  FreeAndNil(AAccessories);
+
+  FreeAndNil(ASwitchBmp[True]);
+  FreeAndNil(ASwitchBmp[False]);
 
 end.
+

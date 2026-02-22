@@ -4,7 +4,7 @@
 *                                                                              *
 *  https://github.com/gmurt/KernowSoftwareFMX                                  *
 *                                                                              *
-*  Copyright 2015 Graham Murt                                                  *
+*  Copyright 2017 Graham Murt                                                  *
 *                                                                              *
 *  email: graham@kernow-software.co.uk                                         *
 *                                                                              *
@@ -33,7 +33,7 @@ uses Classes, FMX.StdCtrls, FMX.Graphics, ksControlBadge, ksTypes, FMX.Objects,
   System.UITypes, System.UIConsts;
 
 type
-  TksSpeedButtonIcon = (Custom, AlarmClock, BarChart, Barcode, Bell, BookCover, BookCoverMinus, BookCoverPlus, BookMark, BookOpen,
+  {TksSpeedButtonIcon = (Custom, AlarmClock, BarChart, Barcode, Bell, BookCover, BookCoverMinus, BookCoverPlus, BookMark, BookOpen,
                         Calendar, Camera, Car, Clock, CloudDownload, CloudUpload, Cross, Document, Download, Earth, Email,
                         Fax, FileList, FileMinus, FilePlus, Files, FileStar, FileTick, Flag, Folder, FolderMinus,
                         FolderPlus, FolderStar, Home, Inbox, Incoming, ListBullets, ListCheckBoxes, ListImages, ListNumbered, ListTicked,
@@ -42,23 +42,27 @@ type
                         Star, Tablet, Tag, Telephone, Telephone2, TelephoneBook, Tick, Timer, Trash, Upload,
                         User, UserEdit, UserGroup, Users, UserSearch,
                         VideoCamera, VideoPlayer, Viewer,
-                        Wifi, Window, Write);
+                        Wifi, Window, Write);  }
 
 
-  [ComponentPlatformsAttribute(pidWin32 or pidWin64 or
-    {$IFDEF XE8_OR_NEWER} pidiOSDevice32 or pidiOSDevice64
-    {$ELSE} pidiOSDevice {$ENDIF} or pidiOSSimulator or pidAndroid)]
+  [ComponentPlatformsAttribute(
+    pidWin32 or
+    pidWin64 or
+    {$IFDEF XE8_OR_NEWER} pidiOSDevice32 or pidiOSDevice64 {$ELSE} pidiOSDevice {$ENDIF} or
+    {$IFDEF XE10_3_OR_NEWER} pidiOSSimulator32 or pidiOSSimulator64 {$ELSE} pidiOSSimulator {$ENDIF} or
+    {$IFDEF XE10_3_OR_NEWER} pidAndroid32Arm or pidAndroid64Arm {$ELSE} pidAndroid {$ENDIF}
+    )]
 
   TksSpeedButton = class(TksBaseSpeedButton)
   private
     FBadge: TksControlBadge;
-    FIcon: TksSpeedButtonIcon;
+    FIcon: TksStandardIcon;
     FBitmap: TBitmap;
     FMouseDown: Boolean;
     FIconColor: TAlphaColor;
     procedure SetBadge(Value: TksBadgeProperties);
     function GetBadge: TksBadgeProperties;
-    procedure SetIcon(const Value: TksSpeedButtonIcon);
+    procedure SetIcon(const Value: TksStandardIcon);
     procedure Invalidate;
     procedure SetIconColor(const Value: TAlphaColor);
   protected
@@ -71,7 +75,7 @@ type
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
   published
-    property Icon: TksSpeedButtonIcon read FIcon write SetIcon;
+    property Icon: TksStandardIcon read FIcon write SetIcon;
     property Badge: TksBadgeProperties read GetBadge write SetBadge;
     property IconColor: TAlphaColor read FIconColor write SetIconColor default claNull;
   end;
@@ -98,6 +102,7 @@ begin
   FIcon := Custom;
   FBitmap := TBitmap.Create;
   FIconColor := claNull;
+  RepeatClick := False;
   ///FImage := TImage.Create(Self);
   //FImage.HitTest := False;
   //FImage.Locked := True;
@@ -150,6 +155,8 @@ var
   ASaveState: TCanvasSaveState;
 begin
   inherited;
+  if Locked then
+    Exit;
   ASaveState := Canvas.SaveState;
   try
     canvas.IntersectClipRect(ClipRect);
@@ -166,19 +173,22 @@ begin
       if (FMouseDown) then
       begin
         {$IFDEF IOS}
-        ReplaceOpaqueColor(FBitmap, GetColorOrDefault(FIconColor, claLightskyblue));
+        ReplaceOpaqueColor(ABmp, GetColorOrDefault(FIconColor, claLightskyblue));
         {$ENDIF}
         {$IFDEF ANDROID}
-        ReplaceOpaqueColor(FBitmap, GetColorOrDefault(FIconColor, claDimgray));
+        ReplaceOpaqueColor(ABmp, GetColorOrDefault(FIconColor, claDimgray));
         {$ENDIF}
       end
       else
       begin
         {$IFDEF IOS}
-        ReplaceOpaqueColor(FBitmap, GetColorOrDefault(FIconColor, claDodgerblue));
+        ReplaceOpaqueColor(ABmp, GetColorOrDefault(FIconColor, claDodgerblue));
         {$ENDIF}
         {$IFDEF ANDROID}
-        ReplaceOpaqueColor(FBitmap, GetColorOrDefault(FIconColor, claDimgray));
+        ReplaceOpaqueColor(ABmp, GetColorOrDefault(FIconColor, claDimgray));
+        {$ENDIF}
+        {$IFDEF MSWINDOWS}
+        ReplaceOpaqueColor(ABmp, FIconColor);
         {$ENDIF}
       end;
 
@@ -195,14 +205,14 @@ begin
   end;
 end;
 
-procedure TksSpeedButton.SetIcon(const Value: TksSpeedButtonIcon);
+procedure TksSpeedButton.SetIcon(const Value: TksStandardIcon);
 var
   AStream: TResourceStream;
   AEnumName: String;
 begin
-  if Value <> TksSpeedButtonIcon.Custom  then
+  if Value <> TksStandardIcon.Custom  then
   begin
-    AEnumName := GetENumName(TypeInfo(TksSpeedButtonIcon), Ord(Value));
+    AEnumName := GetENumName(TypeInfo(TksStandardIcon), Ord(Value));
     AStream := TResourceStream.Create(HInstance, AEnumName, RT_RCDATA);
     try
       FBitmap.Clear(claNull);
@@ -240,51 +250,17 @@ begin
   inherited;
   FMouseDown := True;
   Invalidate;
-  //
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  Application.ProcessMessages;
+  //Application.ProcessMessages;
 end;
 
 
 procedure TksSpeedButton.MouseUp(Button: TMouseButton; Shift: TShiftState; X,
   Y: Single);
 begin
-  inherited;
   FMouseDown := False;
   Invalidate;
-  Application.ProcessMessages;
+  //Application.ProcessMessages;
+  inherited;
 end;
 
 initialization

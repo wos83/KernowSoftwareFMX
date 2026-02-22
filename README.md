@@ -1,82 +1,51 @@
-# THE KSCOMPONENTS PROJECT IS NOW HOSTED ON BITBUCKET 
+# ksComponents
+Kernow Software FMX Components
 
-https://bitbucket.org/gmurt/kscomponents
+Project forked from https://bitbucket.org/gmurt/kscomponents thanks Graham Murt
 
+Kernow Software FMX Components for Delphi XE8, Delphi 10, Delphi 10.1, Delphi 10.2, Delphi 10.3 and Delphi 10.4
 
-# KernowSoftwareFMX
-Kernow Software FMX Components for XE7, XE8 & XE10 Seattle. 
+Have a play and let me know your thoughts.
 
-(May work with earlier versions but untested)
+** TksVirtualListView **
 
-Firemonkey Slide menu, ListView and Segment buttons for Delphi.  Inherits from a non-visual component to keep things simple.
+Enhanced ListView componnent
 
-Includes demo with source.  Demo App also available on app store: 
-https://itunes.apple.com/gb/app/kscomponents-reference/id1031179701?mt=8
+- Title, subtitle and detail
+- Accessory image
+- Pull to refresh
+- Swipe (action) buttons
+- Lots more.
 
-### Feel free to support the components with a donation ;-)
+<p align="left">
+  <img src="https://raw.githubusercontent.com/marlonnardi/ksComponents/master/images/screenshot.png"height="300px"/>
+  </a>
+</p>
 
-If you'd like to support the ksComponents project, you can do so at the following link ;-)
+** TksTabControl
 
-http://www.kernow-software.co.uk/?page_id=397
+Enhanced TabControl component
 
-###TksTableView
+- tab alignment (top/bottom)
+- themes (light/dark/custom)
+- badge support
 
-- Cached table view provides native performance regardless of the number of text/items/graphics added
-- support for embedded switches
-- support for embedded buttons
-- support for embedded segment buttons
-- Canvas style methods for adding text/shapes/images
-- Built-in support for Image, Title, SubTitle, Detail and Accessory elements
-- Check list option support - single check or multi check
-- Custom check mark colours
-- Image cropping (square, round rect or circle)
-- "Indicator" colours - add colour indicators to each row
-- "Sticky" headers
+<p align="left">
+  <img src="https://raw.githubusercontent.com/marlonnardi/ksComponents/master/images/screenshot_dark.png"height="300px"/>
+  <img src="https://raw.githubusercontent.com/marlonnardi/ksComponents/master/images/screenshot_light.png"height="300px"/>
+</p>
 
+** TksPinCode **
 
-###TksSlideMenu
+PinCode entry component
+<p align="left">
+  <img src="https://raw.githubusercontent.com/marlonnardi/ksComponents/master/images/pin.png"height="300px"/>
+</p>
 
-- set menu background colour
-- set selected item colour
-- set font colours
-- add images to items
-- fade background
-- left or right aligned menus
-- inherites from non-visual Tcomponent for quick integration into existing projects
-- uses bitmap caching for optimised performance
+** Left Menu **
 
-###TksSegmentButtons
-
-- segment button component
-- support for iOS style badges
-
-###TksFormTransition
-
-- component for animating transitions between forms
-
-###TksTabControl
-
-- Tab control component with support for different colours/themes
-- Large number of built-in icons
-- Support for iOS style badges
-
-###TksNetHttpClient
-
-- enhanced http client with ASync Get method
-
-###TksTileMenu
-
-- simple but effective main menu component
-
-###TksChatView
-
-- component for building iOS style chat applications
-
-###TksSpeedButton
-
-- TSpeedButton descendant with support for iOS style badges
-
-
+<p align="left">
+  <img src="https://raw.githubusercontent.com/marlonnardi/ksComponents/master/images/left_menu.png"height="300px"/>
+</p>
 
 Any suggestions for updates are welcome :-) 
-

@@ -2,9 +2,9 @@
 *                                                                              *
 *  TksProgressIndicator                                                          *
 *                                                                              *
-*  https://github.com/gmurt/KernowSoftwareFMX                                  *
+*  https://bitbucket.org/gmurt/kscomponents                                    *
 *                                                                              *
-*  Copyright 2015 Graham Murt                                                  *
+*  Copyright 2017 Graham Murt                                                  *
 *                                                                              *
 *  email: graham@kernow-software.co.uk                                         *
 *                                                                              *
@@ -28,7 +28,8 @@ interface
 
 {$I ksComponents.inc}
 
-uses FMX.Controls, Classes, FMX.StdCtrls, FMX.Graphics, FMX.Types, FMX.Objects, ksTypes;
+uses FMX.Controls, Classes, FMX.StdCtrls, FMX.Graphics, FMX.Types, FMX.Objects, ksTypes,
+  System.UIConsts, System.UITypes;
 
 
 type
@@ -55,31 +56,53 @@ type
     property Visible: Boolean read FVisible write SetVisible default True;
   end;
 
-  [ComponentPlatformsAttribute(pidWin32 or pidWin64 or
-    {$IFDEF XE8_OR_NEWER} pidiOSDevice32 or pidiOSDevice64
-    {$ELSE} pidiOSDevice {$ENDIF} or pidiOSSimulator or pidAndroid)]
+  [ComponentPlatformsAttribute(
+    pidWin32 or
+    pidWin64 or
+    {$IFDEF XE8_OR_NEWER} pidiOSDevice32 or pidiOSDevice64 {$ELSE} pidiOSDevice {$ENDIF} or
+    {$IFDEF XE10_3_OR_NEWER} pidiOSSimulator32 or pidiOSSimulator64 {$ELSE} pidiOSSimulator {$ENDIF} or
+    {$IFDEF XE10_3_OR_NEWER} pidAndroid32Arm or pidAndroid64Arm {$ELSE} pidAndroid {$ENDIF}
+    )]
+
   TksProgressIndicator = class(TksControl)
   private
     FSteps: TksProgressIndicatorSteps;
-  protected
+    FActiveColor: TAlphaColor;
+    FInActiveColor: TAlphaColor;
+    FBitmap: TBitmap;
+    FOutlineColor: TAlphaColor;
+    FKeepHighlighted: Boolean;
+    procedure SetActiveColor(const Value: TAlphaColor);
+    procedure SetInActiveColor(const Value: TAlphaColor);
+    procedure Redraw;
+
     procedure Changed;
+  protected
     procedure Paint; override;
+    procedure Resize; override;
+
+    procedure SetOutlineColor(const Value: TAlphaColor);
+    procedure SetKeepHighlighted(const Value: Boolean);
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
   published
+    property ActiveColor: TAlphaColor read FActiveColor write SetActiveColor default claDodgerblue;
+    property InactiveColor: TAlphaColor read FInActiveColor write SetInActiveColor default claSilver;
+    property KeepHighlighted: Boolean read FKeepHighlighted write SetKeepHighlighted default False;
     property Align;
     property Position;
     property Width;
     property Height;
     property Steps: TksProgressIndicatorSteps read FSteps write FSteps;
+    property OutlineColor: TAlphaColor read FOutlineColor write SetOutlineColor default claNull;
   end;
 
   procedure Register;
 
 implementation
 
-uses System.UITypes, Types, SysUtils, System.UIConsts, ksCommon;
+uses Types, SysUtils, ksCommon;
 
 procedure Register;
 begin
@@ -139,6 +162,7 @@ end;
 
 procedure TksProgressIndicator.Changed;
 begin
+  Redraw;
   InvalidateRect(ClipRect);
 end;
 
@@ -146,28 +170,48 @@ constructor TksProgressIndicator.Create(AOwner: TComponent);
 begin
   inherited;
   FSteps := TksProgressIndicatorSteps.Create(Self);
+  FBitmap := TBitmap.Create;
   Size.Width := 200;
   Size.Height := 40;
+  FActiveColor := claDodgerblue;
+  FInActiveColor := claSilver;
+  FKeepHighlighted := False;
+  Redraw;
 end;
 
 destructor TksProgressIndicator.Destroy;
 begin
   FreeAndNil(FSteps);
+  FreeAndNil(FBitmap);
   inherited;
 end;
 
 
 procedure TksProgressIndicator.Paint;
+begin
+  inherited;
+  Canvas.BeginScene;
+  Canvas.DrawBitmap(FBitmap,
+                    RectF(0, 0, FBitmap.Width, FBitmap.Height),
+                    ClipRect,
+                    1,
+                    False);
+  Canvas.EndScene;
+end;
+
+procedure TksProgressIndicator.Redraw;
 var
   ARect: TRectF;
-  ICount: integer;
-  AXpos: single;
+  AXPos: single;
   ASize: single;
+  ICount: integer;
   AColor: TAlphaColor;
-  ABmp: TBitmap;
 begin
-  ABmp := TBitmap.Create;
-  ABmp.Resize(Round(Width * (GetScreenScale*2)), Round(Height * (GetScreenScale*2)));
+  if FBitmap = nil then
+    Exit;
+  FBitmap.Resize(Round(Size.Width * (GetScreenScale*2)), Round(Size.Height * (GetScreenScale*2)));
+  FBitmap.Clear(claNull);
+
   ASize :=  FSteps.Size * (GetScreenScale*2);
 
   if FSteps.Visible = False then
@@ -177,30 +221,70 @@ begin
   OffsetRect(ARect, ((Width * (GetScreenScale*2)) - ARect.Width) / 2, ((Height * (GetScreenScale*2)) - ARect.Height) / 2);
   AXpos := ARect.Left;
 
-
-  ABmp.Canvas.BeginScene;
+  FBitmap.Canvas.BeginScene;
   try
-
-    //FBitmap.Canvas.FillRect(ARect, 0, 0, AllCorners, 1);
     for ICount := 0 to FSteps.MaxSteps-1 do
     begin
-      AColor := claSilver;
-      if (ICount+1) = FSteps.CurrentStep then
-        AColor := claDodgerblue;
-      ABmp.Canvas.Stroke.Color := AColor;
-      ABmp.Canvas.Stroke.Kind := TBrushKind.Solid;
-      ABmp.Canvas.Fill.Color := AColor;
-      ABmp.Canvas.Fill.Kind := TBrushKind.Solid;
+      AColor := FInactiveColor;
+      if ((ICount+1) = FSteps.CurrentStep) then
+        AColor := FActiveColor;
+      if ((ICount+1) < FSteps.CurrentStep) and (FKeepHighlighted) then
+        AColor := FActiveColor;
+
+      FBitmap.Canvas.Stroke.Color := FOutlineColor;
+      FBitmap.Canvas.Stroke.Thickness := GetScreenScale * 2;
+      FBitmap.Canvas.Stroke.Kind := TBrushKind.Solid;
+      FBitmap.Canvas.Fill.Color := AColor;
+      FBitmap.Canvas.Fill.Kind := TBrushKind.Solid;
 
 
-      ABmp.Canvas.FillEllipse(RectF(AXPos, ARect.Top, AXpos+ASize, ARect.Top+ASize), 1);
-      ABmp.Canvas.DrawEllipse(RectF(AXPos, ARect.Top, AXpos+ASize, ARect.Top+ASize), 1);
+      FBitmap.Canvas.FillEllipse(RectF(AXPos, ARect.Top, AXpos+ASize, ARect.Top+ASize), 1);
+      FBitmap.Canvas.DrawEllipse(RectF(AXPos, ARect.Top, AXpos+ASize, ARect.Top+ASize), 1);
       AXPos := AXPos + (ASize*2);
     end;
   finally
-    ABmp.Canvas.EndScene;
+    FBitmap.Canvas.EndScene;
   end;
-  Canvas.DrawBitmap(ABmp, RectF(0, 0, ABmp.Width, ABmp.Height), ClipRect, 1, False);
 end;
+
+procedure TksProgressIndicator.Resize;
+begin
+  inherited;
+  Changed;
+end;
+
+procedure TksProgressIndicator.SetActiveColor(const Value: TAlphaColor);
+begin
+  if FActiveColor <> Value then
+  begin
+    FActiveColor := Value;
+    Repaint;
+  end;
+end;
+
+procedure TksProgressIndicator.SetInActiveColor(const Value: TAlphaColor);
+begin
+  if FInActiveColor <> Value then
+  begin
+    FInActiveColor := Value;
+    Redraw;
+  end;
+end;
+
+procedure TksProgressIndicator.SetKeepHighlighted(const Value: Boolean);
+begin
+  FKeepHighlighted := Value;
+  Redraw;
+end;
+
+procedure TksProgressIndicator.SetOutlineColor(const Value: TAlphaColor);
+begin
+  FOutlineColor := Value;
+  Redraw;
+end;
+
+initialization
+
+  Classes.RegisterClass(TksProgressIndicator);
 
 end.

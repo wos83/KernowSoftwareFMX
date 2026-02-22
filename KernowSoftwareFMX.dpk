@@ -1,30 +1,9 @@
 package KernowSoftwareFMX;
 
 {$R *.res}
-{$IFDEF IMPLICITBUILDING This IFDEF should not be used by users}
-{$ALIGN 8}
-{$ASSERTIONS ON}
-{$BOOLEVAL OFF}
-{$DEBUGINFO OFF}
-{$EXTENDEDSYNTAX ON}
-{$IMPORTEDDATA ON}
-{$IOCHECKS ON}
-{$LOCALSYMBOLS ON}
-{$LONGSTRINGS ON}
-{$OPENSTRINGS ON}
-{$OPTIMIZATION ON}
-{$OVERFLOWCHECKS OFF}
-{$RANGECHECKS OFF}
-{$REFERENCEINFO ON}
-{$SAFEDIVIDE OFF}
-{$STACKFRAMES OFF}
-{$TYPEDADDRESS OFF}
-{$VARSTRINGCHECKS ON}
-{$WRITEABLECONST OFF}
-{$MINENUMSIZE 1}
-{$IMAGEBASE $400000}
-{$ENDIF IMPLICITBUILDING}
-{$IMPLICITBUILD OFF}
+
+{$DEFINE INCLUDE_LEGACY_COMPONENTS}
+
 
 requires
   rtl,
@@ -32,13 +11,16 @@ requires
   designide;
 
 contains
-  ksSlideMenu in 'ksSlideMenu.pas',
-  ksSegmentButtons in 'ksSegmentButtons.pas',
+
+  {$IFDEF INCLUDE_LEGACY_COMPONENTS}
   ksTableView in 'ksTableView.pas',
   ksMainMenu in 'ksMainMenu.pas',
-  ksListViewHelper in 'ksListViewHelper.pas',
-  ksFormTransition in 'ksFormTransition.pas',
   ksChatView in 'ksChatView.pas',
+  {$ENDIF}
+
+  ksCommon in 'ksCommon.pas',
+  ksTypes in 'ksTypes.pas',
+  ksSegmentButtons in 'ksSegmentButtons.pas',
   ksTileMenu in 'ksTileMenu.pas',
   ksNetHttpClient in 'ksNetHttpClient.pas',
   ksSpeedButton in 'ksSpeedButton.pas',
@@ -47,15 +29,29 @@ contains
   ksCameraViewer in 'ksCameraViewer.pas',
   ksTabControl in 'ksTabControl.pas',
   ksComponentEditors in 'ksComponentEditors.pas',
-  ksCommon in 'ksCommon.pas',
-  ksTypes in 'ksTypes.pas',
-  ksLoadingIndicator in 'ksLoadingIndicator.pas',
   ksVirtualListView in 'ksVirtualListView.pas',
-  ksSystemSound in 'ksSystemSound.pas',
   ksImageViewer in 'ksImageViewer.pas',
   ksProgressIndicator in 'ksProgressIndicator.pas',
-  ksCircleProgress in 'ksCircleProgress.pas';
+  ksCircleProgress in 'ksCircleProgress.pas',
+  ksLoadingIndicator in 'ksLoadingIndicator.pas',
+  ksSlideMenu in 'ksSlideMenu.pas',
+  ksSlideMenuUI in 'ksSlideMenuUI.pas',
+  ksFormTransition in 'ksFormTransition.pas',
+  ksFormTransitionUI in 'ksFormTransitionUI.pas' {frmFormTransitionUI},
+  ksAppEvents in 'ksAppEvents.pas',
+  ksToolbar in 'ksToolbar.pas',
+  ksPickers in 'ksPickers.pas',
+  ksMapView in 'ksMapView.pas',
+  ksProgressBar in 'ksProgressBar.pas',
+  ksListViewFilter in 'ksListViewFilter.pas',
+  ksPinCode in 'ksPinCode.pas',
+  ksSystemSound in 'ksSystemSound.pas';
+
+
 
 end.
+
+
+
 
 

@@ -2,9 +2,9 @@
 *                                                                              *
 *  TksTableView - High-Performance Mobile Scrolling List Component             *
 *                                                                              *
-*  https://github.com/gmurt/KernowSoftwareFMX                                  *
+*  https://bitbucket.org/gmurt/kscomponents                                    *
 *                                                                              *
-*  Copyright 2015 Graham Murt                                                  *
+*  Copyright 2017 Graham Murt                                                  *
 *                                                                              *
 *  email: graham@kernow-software.co.uk                                         *
 *                                                                              *
@@ -943,17 +943,17 @@ type
   // TksTableViewItems
 
   TksTableViewItems = class(TObjectList<TksTableViewItem>)
-  protected
+  private
     FCachedCount: integer;
     {$IFNDEF VER310}
-    [weak]FTableView: TksTableView;
-    procedure UpdateIndexes;
+    //[weak]FTableView: TksTableView;
+    //procedure UpdateIndexes;
     {$ENDIF}
     function GetLastItem: TksTableViewItem;
     function GetFirstItem: TksTableViewItem;
     function GetItemByID(AID: string): TksTableViewItem;
   protected
-    {$IFDEF VER310}
+    {$IFDEF XE8_OR_NEWER}
     [weak]FTableView: TksTableView;
     procedure UpdateIndexes;
     {$ENDIF}
@@ -1836,8 +1836,8 @@ type
 
 procedure Register;
 
-var
-  AccessoryImages: TksTableViewAccessoryImageList;
+//var
+  //AccessoryImages: TksTableViewAccessoryImageList;
 
 implementation
 
@@ -2430,8 +2430,7 @@ begin
                   PointF(ARect.Right-12, ARect.Top-4),
                   FBadgeValue,
                   FBadgeColor,
-                  claWhite,
-                  FBadgeTextColor);
+                  claWhite);
   end;
 end;
 
@@ -2541,11 +2540,11 @@ end;
 
 procedure TksTableViewItemAccessory.RedrawAccessory;
 begin
-  Bitmap := AccessoryImages.Images[FAccessory];
+  Bitmap := AAccessories.Images[FAccessory];
   if FColor = claNull then
     OwnsBitmap := False;
-  FWidth := Bitmap.Width / AccessoryImages.ImageScale;
-  FHeight := Bitmap.Height / AccessoryImages.ImageScale;
+  FWidth := Bitmap.Width / AAccessories.ImageScale;
+  FHeight := Bitmap.Height / AAccessories.ImageScale;
   Changed;
 end;
 
@@ -5728,8 +5727,8 @@ begin
                   OffsetRect(FStickyButtonRect,-(SelectionOptions.FSelectionOverlay.Stroke.Thickness/2),0);
                 // draw the sticky button...
                 case FHeaderOptions.StickyHeaders.Button.Selected of
-                  True: AccessoryImages.DrawAccessory(Canvas, FStickyButtonRect, TksAccessoryType.atArrowDown, claBlack, FAppearence.SelectedColor);
-                  False: AccessoryImages.DrawAccessory(Canvas, FStickyButtonRect, TksAccessoryType.atArrowDown, claNull, claNull);
+                  True: AAccessories.DrawAccessory(Canvas, FStickyButtonRect, TksAccessoryType.atArrowDown, claBlack, FAppearence.SelectedColor);
+                  False: AAccessories.DrawAccessory(Canvas, FStickyButtonRect, TksAccessoryType.atArrowDown, claNull, claNull);
                 end;
               end;
             end;
@@ -6754,6 +6753,7 @@ begin
   FWidth := 80;
   FTextColor := claWhite;
   FIsDeleteButton := AIsDelete;
+  FIcon := TBitmap.Create;
 end;
 
 // ------------------------------------------------------------------------------
@@ -6768,48 +6768,39 @@ procedure TksTableViewActionButton.Render(ACanvas: TCanvas; ARect: TRectF);
 var
   ATextRect: TRectF;
   AIconRect: TRectF;
-  AClipRect: TRectF;
   AState: TCanvasSaveState;
 begin
+  // fix provided by Alain Thiffault for resizing of icons
   AState := ACanvas.SaveState;
   try
-
     ATextRect := ARect;
     AIconRect := ARect;
-    ARect.Right := ARect.Right +1;
+    ACanvas.Fill.Kind  := TBrushKind.Solid;
     ACanvas.Fill.Color := Color;
     ACanvas.FillRect(ARect, 0, 0, AllCorners, 1);
-    ACanvas.Font.Size := 14;
+    ACanvas.Font.Size := 12;
     ACanvas.Fill.Color := TextColor;
+    ATextRect := ARect;
+    ATextRect.Height := CalculateTextHeight(Text, ACanvas.Font, False, TTextTrimming.Character);
+    if Text = '' then
+      ATextRect.Height := 0;
 
-    AClipRect := ARect;
-    InflateRect(AClipRect, -2, -2);
-    ACanvas.IntersectClipRect(AClipRect);
+  if FIcon.IsEmpty = False then
+  begin
+    AIconRect := RectF(ARect.Left, ARect.Top, ARect.Left + (ARect.Height / 2.5),
+      ARect.Top + (ARect.Height / 2.5));
+    OffsetRect(AIconRect, (ARect.Width - AIconRect.Width) / 2,
+      ((ARect.Height - AIconRect.Height) / 2));
+    if FText <> '' then
+      OffsetRect(AIconRect, 0, -6);
+    OffsetRect(ATextRect, 0, AIconRect.Bottom - ATextRect.Top);
+    ACanvas.DrawBitmap(FIcon, RectF(0, 0, FIcon.Width, FIcon.Height),
+      AIconRect, 1, False);
+  end
+  else
+    OffsetRect(ATextRect, 0, (ARect.Height - ATextRect.Height) / 2);
+  ACanvas.FillText(ATextRect, FText, False, 1, [], TTextAlign.Center, TTextAlign.Center);
 
-    if FAccessory <> atNone then
-    begin
-      if FIcon = nil then
-      begin
-        FIcon := TksTableViewAccessoryImage.Create;
-        FIcon.Assign(AccessoryImages.GetAccessoryImage(FAccessory));
-        (FIcon as TksTableViewAccessoryImage).Color := FTextColor;
-      end;
-
-      if (Text <> '')then
-      begin
-        AIconRect.Bottom := AIconRect.CenterPoint.Y;
-        AIconRect.Top := AIconRect.Bottom - 28;
-      end;
-      ATextRect.Top := ATextRect.CenterPoint.Y;
-      ATextRect.Bottom := ATextRect.CenterPoint.Y;
-      OffsetRect(ATextRect, 0, 4);
-
-      (FIcon as TksTableViewAccessoryImage).DrawToCanvas(ACanvas, AIconRect, False);
-    end;
-    ACanvas.FillText(ATextRect, Text, False, 1, [], TTextAlign.Center);
-
-    if Trunc(ARect.Width) = 0 then
-      FreeAndNil(FIcon);
   finally
     ACanvas.RestoreState(AState);
   end;
@@ -6817,8 +6808,13 @@ end;
 
 procedure TksTableViewActionButton.SetAccessory(const Value: TksAccessoryType);
 begin
+  // fix provided by Alain Thiffault for resizing of icons
   if FAccessory <> Value then
+  begin
     FAccessory := Value;
+    FIcon.Assign(AAccessories.GetAccessoryImage(Value));
+    FIcon.ReplaceOpaqueColor(FTextColor);
+  end;
 end;
 
 { TksDeleteButton }
@@ -9255,11 +9251,11 @@ end;
 initialization
 
   AIsSwiping := False;
-  AccessoryImages := TksTableViewAccessoryImageList.Create;
+  //AccessoryImages := TksTableViewAccessoryImageList.Create;
 
 finalization
 
- FreeAndNil(AccessoryImages);
+ //FreeAndNil(AccessoryImages);
 
 
 end.

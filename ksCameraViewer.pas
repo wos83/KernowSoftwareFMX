@@ -2,9 +2,9 @@
 *                                                                              *
 *  ksCameraViewer - Real-time Camara Viewer                                    *
 *                                                                              *
-*  https://github.com/gmurt/KernowSoftwareFMX                                  *
+*  https://bitbucket.org/gmurt/kscomponents                                    *
 *                                                                              *
-*  Copyright 2015 Graham Murt                                                  *
+*  Copyright 2017 Graham Murt                                                  *
 *                                                                              *
 *  email: graham@kernow-software.co.uk                                         *
 *                                                                              *
@@ -33,9 +33,13 @@ uses FMX.Controls, Classes, FMX.Objects, FMX.Media, FMX.Graphics, FMX.Types, ksT
 type
   TScanBufferEvent = procedure(Sender: TObject; ABitmap: TBitmap) of object;
 
-  [ComponentPlatformsAttribute(pidWin32 or pidWin64 or
-    {$IFDEF XE8_OR_NEWER} pidiOSDevice32 or pidiOSDevice64
-    {$ELSE} pidiOSDevice {$ENDIF} or pidiOSSimulator or pidAndroid)]
+  [ComponentPlatformsAttribute(
+    pidWin32 or
+    pidWin64 or
+    {$IFDEF XE8_OR_NEWER} pidiOSDevice32 or pidiOSDevice64 {$ELSE} pidiOSDevice {$ENDIF} or
+    {$IFDEF XE10_3_OR_NEWER} pidiOSSimulator32 or pidiOSSimulator64 {$ELSE} pidiOSSimulator {$ENDIF} or
+    {$IFDEF XE10_3_OR_NEWER} pidAndroid32Arm or pidAndroid64Arm {$ELSE} pidAndroid {$ENDIF}
+    )]
   TksCameraViewer = class(TksControl)
   private
     FActive: Boolean;
@@ -57,7 +61,9 @@ type
     property Active: Boolean read FActive write SetActive;
     property Align;
     property Height;
+    property Margins;
     property Size;
+    property Padding;
     property Position;
     property Visible;
     property Width;
@@ -178,8 +184,8 @@ var
   AViewBmp: TBitmap;
 begin
   inherited;
-    if FBuffer.Width = 0 then
-      Exit;
+  if (FBuffer.Width = 0) or (Locked) then
+    Exit;
   ABmp := TBitmap.Create((Owner as TForm).Width, (Owner as TForm).Height);
   try
     ABmp.Canvas.BeginScene;

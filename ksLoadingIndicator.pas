@@ -1,187 +1,154 @@
-{*******************************************************************************
-*                                                                              *
-*  TksLoadingIndicator - Loading indicator control                             *
-*                                                                              *
-*  https://github.com/gmurt/KernowSoftwareFMX                                  *
-*                                                                              *
-*  Copyright 2015 Graham Murt                                                  *
-*                                                                              *
-*  email: graham@kernow-software.co.uk                                         *
-*                                                                              *
-*  Licensed under the Apache License, Version 2.0 (the "License");             *
-*  you may not use this file except in compliance with the License.            *
-*  You may obtain a copy of the License at                                     *
-*                                                                              *
-*    http://www.apache.org/licenses/LICENSE-2.0                                *
-*                                                                              *
-*  Unless required by applicable law or agreed to in writing, software         *
-*  distributed under the License is distributed on an "AS IS" BASIS,           *
-*  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.    *
-*  See the License for the specific language governing permissions and         *
-*  limitations under the License.                                              *
-*                                                                              *
-*******************************************************************************}
-
 unit ksLoadingIndicator;
 
 interface
 
 {$I ksComponents.inc}
 
-uses
-  System.SysUtils, System.Classes, ksTypes, FMX.Objects, FMX.StdCtrls,
-  FMX.Types;
+
+uses FMX.Forms, Classes, FMX.Controls, FMX.Objects, ksTypes, FMX.Graphics,
+  FMX.StdCtrls, FMX.Layouts
+  {$IFDEF IOS}
+  , iOSapi.UIKit, iOSapi.Foundation
+  {$ENDIF}
+  ;
 
 type
-  TksLoadingIndicator = class;
-
-  TksLoadingIndicatorObject = class(TRectangle)
+  [ComponentPlatformsAttribute(
+    pidWin32 or
+    pidWin64 or
+    {$IFDEF XE8_OR_NEWER} pidiOSDevice32 or pidiOSDevice64 {$ELSE} pidiOSDevice {$ENDIF} or
+    {$IFDEF XE10_3_OR_NEWER} pidiOSSimulator32 or pidiOSSimulator64 {$ELSE} pidiOSSimulator {$ENDIF} or
+    {$IFDEF XE10_3_OR_NEWER} pidAndroid32Arm or pidAndroid64Arm {$ELSE} pidAndroid {$ENDIF}
+    )]
+  TksLoadingIndicator = class(TLayout)
   private
-    FLabel: TLabel;
-    FArc: TArc;
-    FTimer: TTimer;
-    function GetText: string;
-    procedure SetText(const Value: string);
-    procedure DoTimer(Sender: TObject);
-    procedure RealignArc;
-  public
-    constructor Create(AOwner: TComponent); override;
-    destructor Destroy; override;
-    property Text: string read GetText write SetText;
-    procedure StartAnimation;
-    procedure StopAnimation;
-  end;
-
-  TksLoadingIndicatorLabel = class(TPersistent)
-  private
-    [weak]FOwner: TksLoadingIndicator;
-    FText: string;
-    FVisible: Boolean;
-    procedure SetText(const Value: string);
-    procedure SetVisible(const Value: Boolean);
-  published
-    constructor Create(AOwner: TksLoadingIndicator);
-    property Text: string read FText write SetText;
-    property Visible: Boolean read FVisible write SetVisible;
-  end;
-
-  [ComponentPlatformsAttribute(pidWin32 or pidWin64 or
-    {$IFDEF XE8_OR_NEWER} pidiOSDevice32 or pidiOSDevice64
-    {$ELSE} pidiOSDevice {$ENDIF} or pidiOSSimulator or pidAndroid)]
-  TksLoadingIndicator = class(TksComponent)
-  private
-    FIndicator: TksLoadingIndicatorObject;
-    FLoadingText: TksLoadingIndicatorLabel;
-    FModalBackground: TRectangle;
-    FVisible: Boolean;
-    FShowModal: Boolean;
+    FRectangle: TRectangle;
+    FBackground: TRectangle;
+    FLoadingText: string;
     FFadeBackground: Boolean;
+    FIsModal: Boolean;
+    //FLabel: TLabel;
+    FOpacity: single;
+    FAnimated: Boolean;
+    FAnimator: TAniIndicator;
+    procedure SetIsModal(const Value: Boolean);
+    procedure SetFadeBackground(const Value: Boolean);
+    procedure SetOpacity(const Value: single);
+    procedure SetAnimated(const Value: Boolean);
+  protected
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
     procedure ShowLoading;
     procedure HideLoading;
-
   published
-    property LoadingText: TksLoadingIndicatorLabel read FLoadingText write FLoadingText;
-    property IsModal: Boolean read FShowModal write FShowModal default False;
-    property FadeBackground: Boolean read FFadeBackground write FFadeBackground default False;
+    property Animated: Boolean read FAnimated write SetAnimated;
+    property IsModal: Boolean read FIsModal write SetIsModal default False;
+    property LoadingText: string read FLoadingText write FLoadingText;
+    property FadeBackground: Boolean read FFadeBackground write SetFadeBackground default False;
+    property Opacity: single read FOpacity write SetOpacity;
   end;
 
-procedure Register;
+
+  procedure ShowLoadingIndicator(AForm: TCommonCustomForm;
+                                 AOpacity: single); overload;
+  procedure ShowLoadingIndicator(AForm: TCommonCustomForm;
+                                 const AFade: Boolean = False;
+                                 const AModal: Boolean = False;
+                                 const AOpacity: single = 1); overload;
+  procedure HideLoadingIndicator(AForm: TCommonCustomForm);
+  function IsLoadingIndicatorVisible(AForm: TCommonCustomForm): Boolean;
+  function FindLoadingIndicator(AForm: TCommonCustomForm): TksLoadingIndicator;
+
+
 
 implementation
 
+uses
+  System.UIConsts, FMX.Types, SysUtils, Types, FMX.Ani
+  {$IFDEF IOS}
+  ,iOSapi.CoreGraphics, FMX.Helpers.iOS
+  {$ENDIF}
+  ;
 
-uses FMX.Graphics, FMX.Forms, System.UIConsts;
 
-procedure Register;
+
+function FindLoadingIndicator(AForm: TCommonCustomForm): TksLoadingIndicator;
+var
+  ICount: integer;
 begin
-  RegisterComponents('Kernow Software FMX', [TksLoadingIndicator]);
+  Result := nil;
+  if AForm = nil then
+    Exit;
+  for ICount := AForm.ComponentCount-1 downto 0 do
+  begin
+    if AForm.Components[ICount] is TksLoadingIndicator then
+    begin
+      Result := (AForm.Components[ICount] as TksLoadingIndicator);
+      Exit;
+    end;
+  end;
 end;
 
-
-{ TksLoadingIndicatorObject }
-
-constructor TksLoadingIndicatorObject.Create(AOwner: TComponent);
+function IsLoadingIndicatorVisible(AForm: TCommonCustomForm): Boolean;
+var
+  ALoading: TksLoadingIndicator;
 begin
-  inherited;
-  FArc := TArc.Create(Self);
-  FArc.Stroke.Color := claLightgray;
-  FArc.Stroke.Thickness := 3;
-  FArc.Stroke.Kind := TBrushKind.Gradient;
-  FArc.Stroke.Gradient.Color := claWhite;
-  FArc.Stroke.Gradient.Color1 := claBlack;
-  Width := 100;
-  Height := 100;
-  Align := TAlignLayout.Center;
-  Visible := False;
-  XRadius := 10;
-  YRadius := 10;
-  Fill.Color := claBlack;
-  HitTest := False;
-  Opacity := 1;
-  FLabel := TLabel.Create(Self);
-  FLabel.StyledSettings := [];
-  FLabel.Font.Size := 14;
-
-  FLabel.Height := 30;
-  FLabel.Align := TAlignLayout.Bottom;
-  FLabel.TextSettings.HorzAlign := TTextAlign.Center;
-  FLabel.TextSettings.FontColor := claWhite;
-  FTimer := TTimer.Create(nil);
-  FTimer.Interval := 25;
-  FTimer.OnTimer := DoTimer;
-  FTimer.Enabled := True;
-  AddObject(FLabel);
-  AddObject(FArc);
-  Stored := False;
-  RealignArc;
+  Result := False;
+  ALoading := FindLoadingIndicator(AForm);
+  if ALoading <> nil then
+  begin
+    if ALoading.Parent = AForm then
+      Result := True;
+  end;
 end;
 
-destructor TksLoadingIndicatorObject.Destroy;
+procedure ShowLoadingIndicator(AForm: TCommonCustomForm;
+                               AOpacity: single); overload;
 begin
-  FTimer.DisposeOf;
-  inherited;
+  ShowLoadingIndicator(AForm, False, False, AOpacity);
 end;
 
-procedure TksLoadingIndicatorObject.DoTimer(Sender: TObject);
+procedure ShowLoadingIndicator(AForm: TCommonCustomForm;
+                               const AFade: Boolean = False;
+                               const AModal: Boolean = False;
+                               const AOpacity: single = 1);
+var
+  ALoadingIndicator: TksLoadingIndicator;
 begin
-  FArc.RotationAngle := FArc.RotationAngle+10;
+  Application.ProcessMessages;
+  try
+    ALoadingIndicator := FindLoadingIndicator(AForm);
+    if ALoadingIndicator = nil then
+      ALoadingIndicator := TksLoadingIndicator.Create(AForm);
+
+    ALoadingIndicator.FadeBackground := AFade;
+    ALoadingIndicator.IsModal := AModal;
+    ALoadingIndicator.Opacity := AOpacity;
+    ALoadingIndicator.Animated := True;
+    AForm.AddObject(ALoadingIndicator);
+
+    ALoadingIndicator.BringToFront;
+  except
+    //
+  end;
 end;
 
-function TksLoadingIndicatorObject.GetText: string;
+procedure HideLoadingIndicator(AForm: TCommonCustomForm);
+var
+  ALoadingIndicator: TksLoadingIndicator;
 begin
-  Result := FLabel.Text;
-end;
+  if AForm = nil then
+    Exit;
 
-procedure TksLoadingIndicatorObject.RealignArc;
-begin
-  FArc.Width := 40;
-  FArc.Height := 40;
-  FArc.StartAngle := 90;
-  FArc.EndAngle := 180;
-  FArc.Position.X := 30;
-  if (FLabel.Visible) and (FLabel.Text <> '') then
-    FArc.Position.Y := 15
-  else
-    FArc.Position.Y := 30;
+  try
+    ALoadingIndicator := FindLoadingIndicator(AForm);
+    if ALoadingIndicator <> nil then
+      AForm.RemoveObject(ALoadingIndicator);
+  except
+    //
+  end;
 
-end;
-
-procedure TksLoadingIndicatorObject.SetText(const Value: string);
-begin
-  FLabel.Text := Value;
-end;
-
-procedure TksLoadingIndicatorObject.StartAnimation;
-begin
-  FTimer.Enabled := True;
-end;
-
-procedure TksLoadingIndicatorObject.StopAnimation;
-begin
-  FTimer.Enabled := False;
 end;
 
 { TksLoadingIndicator }
@@ -189,88 +156,107 @@ end;
 constructor TksLoadingIndicator.Create(AOwner: TComponent);
 begin
   inherited;
-  FIndicator := TksLoadingIndicatorObject.Create(nil);
-  FLoadingText := TksLoadingIndicatorLabel.Create(Self);
-  FModalBackground := TRectangle.Create(nil);
-  FVisible := False;
-  FShowModal := False;
+
+  Align := TAlignLayout.Contents;
+
+  HitTest := False;
+  FLoadingText := 'LOADING';
   FFadeBackground := False;
+  FIsModal := False;
+
+  FBackground := TRectangle.Create(Self);
+  FBackground.Align := TAlignLayout.Client;
+  FBackground.Stroke.Kind := TBrushKind.None;
+  FBackground.Fill.Kind := TBrushKind.Solid;
+  FBackground.Fill.Color := claBlack;
+  FBackground.HitTest := False;
+  FBackground.Opacity := 0.3;
+  AddObject(FBackground);
+
+
+ { FRectangle := TRectangle.Create(Self);
+  FRectangle.Align := TAlignLayout.Center;
+  FRectangle.Stroke.Kind := TBrushKind.Solid;
+  FRectangle.Stroke.Color := claBlack;
+  FRectangle.Fill.Color := claWhite;
+  FRectangle.Width := 50;
+  FRectangle.Height := 50;
+
+  FRectangle.XRadius := 5;
+  FRectangle.YRadius := 5;
+
+  FRectangle.Opacity := FOpacity;   }
+
+ { FLabel := TLabel.Create(Self);
+  FLabel.Align := TAlignLayout.Client;
+  FLabel.TextSettings.FontColor := claWhite;
+  FLabel.Text := FLoadingText;
+  FLabel.TextSettings.HorzAlign := TTextAlign.Center;
+  FLabel.TextSettings.VertAlign := TTextAlign.Center;
+  FLabel.StyledSettings := [];      }
+
+  FAnimator := TAniIndicator.Create(Self);
+  FAnimator.Align := TAlignLayout.Client;
+  FAnimator.
+
+  AddObject(FRectangle);
+  //AddObject(FLabel);
+  AddObject(FAnimator);
+
+
 end;
+
 
 destructor TksLoadingIndicator.Destroy;
 begin
-  if not FVisible then
-  begin
-    {$IFDEF NEXTGEN}
-    FIndicator.DisposeOf;
-    FModalBackground.DisposeOf;
-    FLoadingText.DisposeOf;
-    {$ELSE}
-    FIndicator.Free;
-    FModalBackground.Free;
-    FLoadingText.Free;
-    {$ENDIF}
-  end;
   inherited;
 end;
 
 procedure TksLoadingIndicator.HideLoading;
-var
-  AOwner: TCustomForm;
 begin
-  AOwner := (Root.GetObject as TCustomForm);
-  FIndicator.StopAnimation;
-  AOwner.RemoveObject(FModalBackground);
-  AOwner.RemoveObject(FIndicator);
-  FVisible := False;
+  HideLoadingIndicator(Owner as TForm);
+end;
+
+
+procedure TksLoadingIndicator.SetAnimated(const Value: Boolean);
+begin
+  FAnimated := Value;
+  FAnimator.Enabled := Value;
+end;
+
+procedure TksLoadingIndicator.SetFadeBackground(const Value: Boolean);
+begin
+  FFadeBackground := Value;
+  case Value of
+    True: FBackground.Opacity := 0.3;
+    False: FBackground.Opacity := 0;
+  end;
+end;
+
+procedure TksLoadingIndicator.SetIsModal(const Value: Boolean);
+begin
+  FIsModal := Value;
+  FBackground.HitTest := Value;
+end;
+
+procedure TksLoadingIndicator.SetOpacity(const Value: single);
+begin
+  FOpacity := Value;
+  //FRectangle.Opacity := Value;
 end;
 
 procedure TksLoadingIndicator.ShowLoading;
-var
-  AOwner: TCustomForm;
 begin
-  FVisible := True;
-  AOwner := (Root.GetObject as TCustomForm);
+  ShowLoadingIndicator(Owner as TForm);
 
-  FModalBackground.Align := TAlignLayout.Contents;
-  FModalBackground.HitTest := FShowModal;
-  FModalBackground.Stroke.Kind := TBrushKind.None;
-  FModalBackground.Fill.Color := claNull;
-  if FFadeBackground then
-  begin
-    FModalBackground.Fill.Color := claBlack;
-    FModalBackground.Opacity := 0.5;
-  end;
-
-  AOwner.AddObject(FModalBackground);
-  AOwner.AddObject(FIndicator);
-  FIndicator.BringToFront;
-  FIndicator.FLabel.Visible := FLoadingText.Visible;
-  FIndicator.FLabel.Text := FLoadingText.Text;
-  FIndicator.RealignArc;
-  FIndicator.Visible := True;
-  FIndicator.StartAnimation;
 end;
 
-{ TksLoadingIndicatorLabel }
-
-
-constructor TksLoadingIndicatorLabel.Create(AOwner: TksLoadingIndicator);
-begin
-  inherited Create;
-  FOwner := AOwner;
-  FText := 'LOADING...';
-  FVisible := True;
-end;
-
-procedure TksLoadingIndicatorLabel.SetText(const Value: string);
-begin
-  FText := Value;
-end;
-
-procedure TksLoadingIndicatorLabel.SetVisible(const Value: Boolean);
-begin
-  FVisible := Value;
-end;
 
 end.
+
+
+
+
+
+
+

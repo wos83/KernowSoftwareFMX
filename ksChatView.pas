@@ -2,9 +2,9 @@
 *                                                                              *
 *  TksChatView - TksTableView wrapper for chat bubbles applications            *
 *                                                                              *
-*  https://github.com/gmurt/KernowSoftwareFMX                                  *
+*  https://bitbucket.org/gmurt/kscomponents                                    *
 *                                                                              *
-*  Copyright 2015 Graham Murt                                                  *
+*  Copyright 2017 Graham Murt                                                  *
 *                                                                              *
 *  email: graham@kernow-software.co.uk                                         *
 *                                                                              *
@@ -33,17 +33,17 @@ uses System.UITypes, FMX.Controls, FMX.Layouts, FMX.Objects, System.Classes,
   FMX.StdCtrls, System.Types, FMX.Forms, ksTableView, FMX.Edit,
   FMX.VirtualKeyboard, System.Messaging, ksTypes;
 
-
 type
   TksChatView = class;
 
+  TksBubblePosition = (bpLeft, bpRight);
 
   TksChatBubbleInfo = record
     Text: string;
     APosition: TksTableViewChatBubblePosition;
     Color: TAlphaColor;
     TextColor: TAlphaColor;
-    TableViewItem: TksTableViewItem;
+    Item: TksTableViewItem;
   end;
 
   TKsChatViewClickBubbleEvent = procedure(Sender: TObject; ABubble: TksChatBubbleInfo) of object;
@@ -226,9 +226,9 @@ destructor TksChatView.Destroy;
 begin
   if not (csDesigning in ComponentState) then
   begin
-    FTableView.DisposeOf;
-    FEdit.DisposeOf;
-    FSpacer.DisposeOf;
+    FTableView.Free;
+    FEdit.Free;
+    FSpacer.Free;
   end;
   FreeAndNil(FMyImage);
   inherited;
@@ -248,7 +248,7 @@ begin
       AInfo.APosition := ABubble.Position;
       AInfo.Color := ABubble.Fill.Color;
       AInfo.TextColor := ABubble.TextColor;
-      AInfo.TableViewItem := AItem;
+      AInfo.Item := AItem;
       FOnChatBubbleClick(Self, AInfo);
     end;
   end;
@@ -417,8 +417,8 @@ end;
 
 destructor TksChatViewEdit.Destroy;
 begin
-  FEdit.DisposeOf;
-  FSendButton.DisposeOf;
+  FEdit.Free;
+  FSendButton.Free;
   inherited;
 end;
 
